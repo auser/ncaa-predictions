@@ -3,7 +3,7 @@ from mbp.paths import SEASONS_DIR, RAW_DATA_DIR
 import pandas as pd
 
 
-def download_raw_data_for_team(team_name: str, year: str):
+def download_raw_team_data_for_year(team_name: str, year: str):
     driver = activate_web_driver("firefox")
 
     # Read team names

@@ -47,10 +47,8 @@ def activate_web_driver(browser: str) -> webdriver:
         from selenium.webdriver.firefox.service import Service as FirefoxService
         from webdriver_manager.firefox import GeckoDriverManager
 
-        print("Installing firefox...")
         # executable_path = GeckoDriverManager().install()
         executable_path = "/Users/auser/.local/bin/geckodriver"
-        print(f"executable_path: {executable_path}")
         service = FirefoxService(executable_path=executable_path)
 
         firefox_options = webdriver.FirefoxOptions()
@@ -119,6 +117,7 @@ def get_team_name_to_ids(driver: webdriver, params: dict = {}) -> dict:
     return team_ids
 
 
+# Direct the webdriver to the team page
 def get_team_page(
     driver: webdriver, df: pd.DataFrame, team_name: str, raw_year: str = "2023"
 ) -> pd.DataFrame:
@@ -145,37 +144,9 @@ def get_team_page(
     select_btn.click()
 
 
-# TODO: Split up this method
-def get_team_games_for_year(
-    driver: webdriver, df: pd.DataFrame, team_name: str, raw_year: str = "2023"
-) -> pd.DataFrame:
-    from mbp.webscraping import TEAMS_URL
-    from selenium.webdriver.support.wait import WebDriverWait
-    from selenium.webdriver.common.by import By
-
-    get_team_page(driver, df, team_name, raw_year)
-    # team_id = df[:][df["team_name"].str.contains(team_name)]["team_id"].iloc[0]
-
-    # team_url = f"{TEAMS_URL}/{team_id}"
-    # driver.get(team_url)
-
-    # wait = WebDriverWait(driver, 10)
-    # wait.until(
-    #     lambda d: driver.find_element(By.CSS_SELECTOR, "a[target=ATHLETICS_URL]")
-    # )
-    # # Format date
-    # dt = datetime.strptime(raw_year, "%Y")
-    # formatted_date = f"{raw_year}-{str(int(dt.strftime('%y')) + 1)}"
-
-    # select_form = driver.find_element(By.NAME, "year_id")
-    # select = Select(select_form)
-    # select.select_by_visible_text(formatted_date)
-
-    # # Select the correct year
-    # form = driver.find_element(By.ID, "change_sport_form")
-    # select_btn = form.find_element(By.CSS_SELECTOR, "select > option")
-    # select_btn.click()
-
+# Select the schedule and results page
+def get_schedule_and_results_page(driver: webdriver) -> list:
+    # Select schedule and results
     tables = driver.find_elements(By.CSS_SELECTOR, "#contentarea table>tbody")
 
     schedule_result_element = None
@@ -191,10 +162,24 @@ def get_team_games_for_year(
     listing = schedule_result_element.find_elements(By.CSS_SELECTOR, "tbody > tr")
     games = []
     for li in listing:
-        style = li.get_attribute("style")
         if li.get_attribute("style") == "":
             games.append(li)
 
+    return games
+
+
+# Get team games for the year
+def get_team_games_for_year(
+    driver: webdriver, df: pd.DataFrame, team_name: str, raw_year: str = "2023"
+) -> pd.DataFrame:
+    from mbp.webscraping import TEAMS_URL
+    from selenium.webdriver.support.wait import WebDriverWait
+    from selenium.webdriver.common.by import By
+
+    get_team_page(driver, df, team_name, raw_year)
+
+    # Select schedule and results
+    games = get_schedule_and_results_page(driver)
     # Get all the dates
     season_games = []
     for idx, game in enumerate(games[1:]):
@@ -229,6 +214,68 @@ def get_team_games_for_year(
 
     games_df3 = games_df2.drop(columns="raw_datetime")
     return games_df3
+
+
+# Get team roster
+def get_team_roster(
+    driver: webdriver, df: pd.DataFrame, team_name: str, raw_year: str = "2023"
+) -> pd.DataFrame:
+    from mbp.webscraping import TEAMS_URL
+    from selenium.webdriver.support.wait import WebDriverWait
+    from selenium.webdriver.common.by import By
+
+    get_team_page(driver, df, team_name, raw_year)
+
+    # Get roster tab
+    roster_link = driver.find_element(By.LINK_TEXT, "Roster")
+    roster_link.click()
+    wait = WebDriverWait(driver, 10)
+    wait.until(lambda d: driver.find_element(By.CSS_SELECTOR, "table.dataTable"))
+    # Pluck roster table
+    roster_table = driver.find_element(By.CSS_SELECTOR, "table#stat_grid")
+
+    players = []
+    player_rows = roster_table.find_elements(By.CSS_SELECTOR, "tbody tr")
+    for row in player_rows:
+        jersey = row.find_element(By.XPATH, f"td[1]").text
+        player = row.find_element(By.XPATH, f"td[2]").text
+        position = row.find_element(By.XPATH, f"td[3]").text
+        height = row.find_element(By.XPATH, f"td[4]").text
+        year = row.find_element(By.XPATH, f"td[5]").text
+        games_played = row.find_element(By.XPATH, f"td[6]").text
+        games_scored = row.find_element(By.XPATH, f"td[7]").text
+        players.append(
+            {
+                "jersey": jersey,
+                "player": player,
+                "position": position,
+                "height": height,
+                "year": year,
+                "games_played": games_played,
+                "games_scored": games_scored,
+            }
+        )
+
+    # Beautify name
+    team_roster = pd.DataFrame(players)
+    team_roster1 = team_roster.copy()
+    team_roster1["first_name"] = ""
+    team_roster1["last_name"] = ""
+    for idx, row in team_roster1.iterrows():
+        last_name, first_name = row["player"].split(",")
+        feet, inch = row["height"].split("-")
+
+        # TODO: fix the dtype error
+        team_roster1.loc[idx, "first_name"] = first_name.strip()
+        team_roster1.loc[idx, "last_name"] = last_name.strip()
+        team_roster1.loc[idx, "height_ft"] = int(feet)
+        team_roster1.loc[idx, "height_in"] = int(inch)
+
+    team_roster1 = team_roster1.drop(columns=["player", "height"])
+    return team_roster1
+
+
+# Utils
 
 
 def split_and_parse(s: str):
