@@ -220,6 +220,10 @@ def get_team_games_for_year(
         games_df2.at[idx, "datetime"] = pd.to_datetime(dt)
 
         opp = row["opponent"]
+        # ncaa.stats isn't for machines
+        if "#" in opp:
+            opp = opp.split(" ")[1]
+
         if "@" in opp:
             parts = opp.split("@")
 
@@ -227,6 +231,7 @@ def get_team_games_for_year(
                 opp_name = parts[1]
             else:
                 opp_name = parts[0]
+
             games_df2.at[idx, "home"] = 0
             games_df2.at[idx, "opponent"] = opp_name.strip()
         else:
