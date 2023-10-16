@@ -23,3 +23,5 @@ if not Path(MODELS_DIR).exists():
 
 if not Path(SEASONS_DIR).exists():
     os.mkdir(SEASONS_DIR)
+
+print(f"download_raw_team_data_for_year: {SEASONS_DIR}")
