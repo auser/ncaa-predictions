@@ -4,8 +4,9 @@ from mbp.webscraping import (
     get_team_name_to_ids,
     get_team_roster,
     get_team_stats,
+    get_game_stats,
 )
-from mbp.paths import SEASONS_DIR, RAW_DATA_DIR
+from mbp.paths import SEASONS_DIR, RAW_DATA_DIR, team_save_dir
 import pandas as pd
 import os
 from pathlib import Path
@@ -143,11 +144,12 @@ def download_raw_team_stats_for_year(team_name: str, year: str) -> pd.DataFrame:
     return stats_df
 
 
-def team_save_dir(team_name: str, year: int = 2023) -> Path:
-    """
-    Get the team save directory
-    """
-    save_dir = Path(SEASONS_DIR / str(year) / team_name)
-    if not save_dir.exists():
-        save_dir.mkdir(exist_ok=True, parents=True)
-    return save_dir
+def download_game_data(
+    team_a: str, team_b: str, year: int
+) -> (str, pd.DataFrame, str, pd.DataFrame):
+    driver = activate_web_driver("firefox")
+    df = pd.read_csv(f"{RAW_DATA_DIR}/mbb_team_names_to_number.csv", index_col=0)
+
+    ret = get_game_stats(driver, df, team_a, team_b, year)
+    driver.quit()
+    return ret

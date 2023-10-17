@@ -24,4 +24,12 @@ if not Path(MODELS_DIR).exists():
 if not Path(SEASONS_DIR).exists():
     os.mkdir(SEASONS_DIR)
 
-print(f"download_raw_team_data_for_year: {SEASONS_DIR}")
+
+def team_save_dir(team_name: str, year: int = 2023) -> Path:
+    """
+    Get the team save directory
+    """
+    save_dir = Path(SEASONS_DIR / str(year) / team_name)
+    if not save_dir.exists():
+        save_dir.mkdir(exist_ok=True, parents=True)
+    return save_dir

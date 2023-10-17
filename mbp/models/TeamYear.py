@@ -1,8 +1,19 @@
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta, date
 from pathlib import Path
 from mbp.paths import SEASONS_DIR
 from mbp.data import download_team_data, download_roster_data
+
+
+def get_next_game(team_year, date_from=date.today()):
+    """
+    Get the next game object for the next opponent
+    """
+    from .TeamGame import TeamGame
+
+    next_opponent = team_year.get_next_opponent_or_last(date_from)
+
+    return TeamGame(team_year, next_opponent)
 
 
 class TeamYear:
@@ -10,6 +21,9 @@ class TeamYear:
         self.team_name = team_name
         self.year = year
         self.team_dir = Path(SEASONS_DIR) / str(year) / team_name
+        self.games = None
+        self.roster = None
+        self.stats = None
 
     def download_roster_data(self, force: bool = False):
         """
@@ -41,26 +55,45 @@ class TeamYear:
                 # We do need to update because we're in the middle of the season
                 return download_team_data(self.team_name, self.year, True)
 
-    def get_next_opponent(self) -> pd.DataFrame:
+    def get_next_opponent_or_last(self, date_from=date.today()) -> pd.DataFrame:
         """
         Get the next opponent for this team
         """
-        pass
 
-    def get_games(self) -> pd.DataFrame:
+        df2 = self.get_games()
+        df2["datetime"] = pd.to_datetime(df2["datetime"])
+        df2["difference"] = df2["datetime"].dt.date - date_from
+        future_dates = df2[df2["difference"] > timedelta(days=0)]
+        if future_dates.empty:
+            # Return the last possible row
+            return df2.iloc[-1]
+        else:
+            next_future_date = future_dates.loc[future_dates["difference"].idxmin()]
+            return next_future_date
+
+    def get_games(self, reload: bool = False) -> pd.DataFrame:
         """
         Get the games previously save for a team
         """
-        return pd.read_csv(self.team_dir / "games.csv", index_col=0)
+        if self.games is not None and not reload:
+            return self.games
+        self.games = pd.read_csv(self.team_dir / "games.csv", index_col=0)
+        return self.games
 
-    def get_stats(self) -> pd.DataFrame:
+    def get_stats(self, reload: bool = False) -> pd.DataFrame:
         """
         Get the stats previously save for a team
         """
-        return pd.read_csv(self.team_dir / "stats.csv", index_col=0)
+        if self.stats is not None and not reload:
+            return self.stats
+        self.stats = pd.read_csv(self.team_dir / "stats.csv", index_col=0)
+        return self.stats
 
-    def get_roster(self) -> pd.DataFrame:
+    def get_roster(self, reload: bool = False) -> pd.DataFrame:
         """
         Get the roster previously save for a team
         """
-        return pd.read_csv(self.team_dir / "roster.csv", index_col=0)
+        if self.roster is not None and not reload:
+            return self.roster
+        self.roster = pd.read_csv(self.team_dir / "roster.csv", index_col=0)
+        return self.roster

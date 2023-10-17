@@ -16,10 +16,12 @@ from selenium.webdriver.support.select import Select
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.remote.webelement import WebElement
 
 BASE_URL = "https://stats.ncaa.org"
 
 from mbp.utils import get_formatted_year
+from mbp.paths import team_save_dir
 
 
 def activate_web_driver(browser: str, headless: bool = True) -> webdriver:
@@ -209,6 +211,9 @@ def get_team_games_for_year(
             2: "result",
             3: "attendance",
             4: "home",
+            5: "win",
+            6: "team_score",
+            7: "opp_score",
         },
         inplace=True,
     )
@@ -218,6 +223,18 @@ def get_team_games_for_year(
     for idx, row in games_df.iterrows():
         dt = split_and_parse_datetime(row["raw_datetime"])
         games_df2.at[idx, "datetime"] = pd.to_datetime(dt)
+
+        if "W" in row["result"] or "L" in row["result"]:
+            # W/L [home-score]-[opp-score]
+            parts = row["result"].split(" ")
+            games_df2.at[idx, "result"] = parts[1]
+            if parts[0] == "W":
+                games_df2.at[idx, "win"] = 1.0
+            else:
+                games_df2.at[idx, "win"] = 0.0
+            score_parts = parts[1].split("-")
+            games_df2.at[idx, "team_score"] = score_parts[0]
+            games_df2.at[idx, "opp_score"] = score_parts[1]
 
         opp = row["opponent"]
         # ncaa.stats isn't for machines
@@ -346,6 +363,96 @@ def get_team_stats(
 
     team_stats = pd.DataFrame(data_df, columns=headings)
     return team_stats
+
+
+def get_game_stats(
+    driver: webdriver,
+    df: pd.DataFrame,
+    team_name: str,
+    opponent_name: str,
+    year: int = 2023,
+):
+    get_team_page(driver, df, team_name, year)
+    # Get game page
+    game_by_game_link = driver.find_element(By.LINK_TEXT, "Game By Game")
+    game_by_game_link.click()
+    wait = WebDriverWait(driver, 10)
+    wait.until(
+        lambda d: driver.find_element(By.CSS_SELECTOR, "#game_breakdown_div table")
+    )
+
+    # Save the main window handle
+    curr_window_handle = driver.current_window_handle
+
+    rows = driver.find_elements(By.CSS_SELECTOR, "#game_breakdown_div table > tbody tr")
+    # rows = opp_table.find_elements(By.TAG_NAME, "tr")
+    # skip the first two rows
+    rows = [row for row in rows[2:] if row.get_attribute("class") == ""]
+    for idx, _row in enumerate(rows):
+        try:
+            cells = rows[idx].find_elements(By.TAG_NAME, "td")
+        except:
+            pass
+        if cells[1].text.strip() == opponent_name:
+            row_links = rows[idx].find_elements(By.TAG_NAME, "a")
+            row_links[2].click()
+            break
+
+    # Wait for the new window or tab
+    wait.until(EC.number_of_windows_to_be(2))
+
+    # Switch to new tab
+    other_handles = [
+        handle for handle in driver.window_handles if handle != curr_window_handle
+    ]
+    if len(other_handles) > 0:
+        driver.switch_to.window(other_handles[0])
+    else:
+        print("Something went wrong")
+
+    wait.until(lambda d: driver.find_elements(By.CSS_SELECTOR, "table.mytable"))
+
+    # Get the last two tables
+    tables = driver.find_elements(By.TAG_NAME, "table")
+    tables = tables[-2:]
+
+    def process_table(table: WebElement):
+        # First table heading
+        first_table_heading = table.find_element(By.CSS_SELECTOR, "tbody > tr.heading")
+        team = first_table_heading.text
+
+        # Get all headers
+        headers = table.find_elements(By.CSS_SELECTOR, "th")
+        all_headings = [heading.text for heading in headers]
+
+        # get all players for each row
+        player_rows = table.find_elements(By.CSS_SELECTOR, "tr.smtext")
+        players_and_stats = []
+        for row in player_rows:
+            player_and_stats = {}
+            cells = row.find_elements(By.TAG_NAME, "td")
+            for idx, heading in enumerate(all_headings):
+                player_and_stats[heading] = cells[idx].text
+
+            players_and_stats.append(player_and_stats)
+
+        game_df = pd.DataFrame(players_and_stats)
+        return (team, game_df)
+
+    team1, stats_team1 = process_table(tables[0])
+    team2, stats_team2 = process_table(tables[1])
+
+    team1_games_save_dir = team_save_dir(team1, year) / "games"
+    if not team1_games_save_dir.exists():
+        team1_games_save_dir.mkdir(exist_ok=True, parents=True)
+    stats_team2.to_csv(team1_games_save_dir / f"{team2}.csv")
+
+    team2_games_save_dir = team_save_dir(team2, year) / "games"
+    if not team2_games_save_dir.exists():
+        team2_games_save_dir.mkdir(exist_ok=True, parents=True)
+    stats_team1.to_csv(team2_games_save_dir / f"{team1}.csv")
+
+    return (team1, stats_team1, team2, stats_team2)
 
 
 # Utils
