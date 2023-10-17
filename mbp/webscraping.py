@@ -238,9 +238,9 @@ def get_team_games_for_year(
             games_df2.at[idx, "home"] = 1
             games_df2.at[idx, "opponent"] = opp.strip()
 
-    games_df3 = games_df2.drop(columns="raw_datetime")
-    games_df3 = games_df2
-    return games_df3
+    games_df2 = games_df2.drop(columns=["raw_datetime"])
+    games_df2.reset_index()
+    return games_df2
 
 
 # Get team roster

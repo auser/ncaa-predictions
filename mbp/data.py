@@ -12,6 +12,10 @@ from pathlib import Path
 
 
 def download_team_names_to_id():
+    """
+    Download the raw team names to transform them from a string
+    to the unique id at stats.ncaa.org
+    """
     driver = activate_web_driver("firefox")
 
     team_ids = get_team_name_to_ids(driver, {})
@@ -23,6 +27,36 @@ def download_team_names_to_id():
     df.reset_index()
     # Save to raw data directory
     df.to_csv(f"{RAW_DATA_DIR}/mbb_team_names_to_number.csv")
+
+
+def get_team_games(team_name: str, year: int) -> pd.DataFrame:
+    """
+    Get the games previously save for a team
+    """
+    team_dir = Path(SEASONS_DIR) / str(year) / team_name
+    return pd.read_csv(team_dir / "games.csv")
+
+
+def download_roster_data(team_name: str, year: int, force_new_download: bool = False):
+    """
+    The roster does not change between games per-year, so
+    this only needs to be run once
+    """
+    driver = activate_web_driver("firefox")
+
+    # Read team names
+    df = pd.read_csv(f"{RAW_DATA_DIR}/mbb_team_names_to_number.csv", index_col=0)
+    save_dir = team_save_dir(team_name, year)
+
+    roster_file = save_dir / "roster.csv"
+    if not roster_file.exists() or force_new_download:
+        print(f"Downloading {team_name} team roster")
+        team_roster = get_team_roster(driver, df, team_name, year)
+        team_roster.to_csv(roster_file)
+    else:
+        roster_file = pd.read_csv(roster_file)
+
+    return roster_file
 
 
 def download_team_data(
@@ -45,14 +79,6 @@ def download_team_data(
         games_df.to_csv(games_file)
     else:
         games_df = pd.read_csv(games_file)
-
-    roster_file = save_dir / "roster.csv"
-    if not roster_file.exists() or force_new_download:
-        print(f"Downloading {team_name} team roster")
-        team_roster = get_team_roster(driver, df, team_name, year)
-        team_roster.to_csv(roster_file)
-    else:
-        roster_file = pd.read_csv(roster_file)
 
     stats_file = save_dir / "stats.csv"
     if not stats_file.exists() or force_new_download:
