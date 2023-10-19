@@ -237,27 +237,53 @@ def get_team_games_for_year(
             games_df2.at[idx, "opp_score"] = score_parts[1]
 
         opp = row["opponent"]
+        (name, home) = clean_team_name_and_return_home(opp)
+        games_df2.at[idx, "home"] = home
+        games_df2.at[idx, "opponent"] = name
         # ncaa.stats isn't for machines
-        if "#" in opp:
-            opp = opp.split(" ")[1]
+        # if "#" in opp:
+        #     opp = opp.split(" ")[1]
 
-        if "@" in opp:
-            parts = opp.split("@")
+        # if "@" in opp:
+        #     parts = opp.split("@")
 
-            if parts[0] == "":
-                opp_name = parts[1]
-            else:
-                opp_name = parts[0]
+        #     if parts[0] == "":
+        #         opp_name = parts[1]
+        #     else:
+        #         opp_name = parts[0]
 
-            games_df2.at[idx, "home"] = 0
-            games_df2.at[idx, "opponent"] = opp_name.strip()
-        else:
-            games_df2.at[idx, "home"] = 1
-            games_df2.at[idx, "opponent"] = opp.strip()
+        #     games_df2.at[idx, "home"] = 0
+        #     games_df2.at[idx, "opponent"] = opp_name.strip()
+        # else:
+        #     games_df2.at[idx, "home"] = 1
+        #     games_df2.at[idx, "opponent"] = opp.strip()
 
     games_df2 = games_df2.drop(columns=["raw_datetime"])
     games_df2.reset_index()
     return games_df2
+
+
+def clean_team_name_and_return_home(team_name: str) -> (str, int):
+    """
+    Clean the name from the NCAA page
+    """
+    # ncaa.stats isn't for machines
+    if "#" in team_name:
+        team_name = team_name.split(" ")[1]
+
+    if "@" in team_name:
+        parts = team_name.split("@")
+
+        if parts[0] == "":
+            team_name = parts[1]
+        else:
+            team_name = parts[0]
+
+        home = 0
+    else:
+        home = 1
+
+    return (team_name.strip(), home)
 
 
 # Get team roster
@@ -303,19 +329,19 @@ def get_team_roster(
     # Beautify name
     team_roster = pd.DataFrame(players)
     team_roster1 = team_roster.copy()
-    team_roster1["first_name"] = ""
-    team_roster1["last_name"] = ""
+    # team_roster1["first_name"] = ""
+    # team_roster1["last_name"] = ""
     for idx, row in team_roster1.iterrows():
-        last_name, first_name = row["player"].split(",")
+        # last_name, first_name = row["player"].split(",")
         feet, inch = row["height"].split("-")
 
         # TODO: fix the dtype error
-        team_roster1.loc[idx, "first_name"] = first_name.strip()
-        team_roster1.loc[idx, "last_name"] = last_name.strip()
+        # team_roster1.loc[idx, "first_name"] = first_name.strip()
+        # team_roster1.loc[idx, "last_name"] = last_name.strip()
         team_roster1.loc[idx, "height_ft"] = int(feet)
         team_roster1.loc[idx, "height_in"] = int(inch)
 
-    team_roster1 = team_roster1.drop(columns=["player", "height"])
+    team_roster1 = team_roster1.drop(columns=["height"])
     return team_roster1
 
 
@@ -349,7 +375,7 @@ def get_team_stats(
 
     stats_table = driver.find_element(By.CSS_SELECTOR, "table#stat_grid")
     stats_headings = stats_table.find_elements(By.CSS_SELECTOR, "thead th")
-    headings = [h.text for h in stats_headings]
+    headings = [h.text.lower() for h in stats_headings]
     # df = pd.DataFrame(columns=headings)
     data_df = []
     stats_rows = driver.find_elements(By.CSS_SELECTOR, "table#stat_grid tbody tr")
@@ -388,13 +414,17 @@ def get_game_stats(
     # rows = opp_table.find_elements(By.TAG_NAME, "tr")
     # skip the first two rows
     rows = [row for row in rows[2:] if row.get_attribute("class") == ""]
-    for idx, _row in enumerate(rows):
+    for idx, row in enumerate(rows):
         try:
-            cells = rows[idx].find_elements(By.TAG_NAME, "td")
+            cells = row.find_elements(By.TAG_NAME, "td")
         except:
             pass
-        if cells[1].text.strip() == opponent_name:
-            row_links = rows[idx].find_elements(By.TAG_NAME, "a")
+
+        opp_link_text = cells[1].text.strip()
+        (name, home) = clean_team_name_and_return_home(opp_link_text)
+
+        if name == opponent_name:
+            row_links = row.find_elements(By.TAG_NAME, "a")
             row_links[2].click()
             break
 
@@ -423,7 +453,7 @@ def get_game_stats(
 
         # Get all headers
         headers = table.find_elements(By.CSS_SELECTOR, "th")
-        all_headings = [heading.text for heading in headers]
+        all_headings = [heading.text.lower() for heading in headers]
 
         # get all players for each row
         player_rows = table.find_elements(By.CSS_SELECTOR, "tr.smtext")
@@ -433,6 +463,8 @@ def get_game_stats(
             cells = row.find_elements(By.TAG_NAME, "td")
             for idx, heading in enumerate(all_headings):
                 player_and_stats[heading] = cells[idx].text
+
+            player_and_stats["team"] = team
 
             players_and_stats.append(player_and_stats)
 

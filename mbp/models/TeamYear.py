@@ -1,11 +1,17 @@
 import pandas as pd
 from datetime import datetime, timedelta, date
 from pathlib import Path
-from mbp.paths import SEASONS_DIR
-from mbp.data import download_team_data, download_roster_data
+from mbp.paths import SEASONS_DIR, team_save_dir
+from mbp.data import (
+    download_team_data,
+    download_roster_data,
+    download_and_save_team_roster,
+    download_raw_team_stats_for_year,
+    download_raw_team_games_for_year,
+)
 
 
-def get_next_game(team_year, date_from=date.today()):
+def get_next_game(team_year, year: int = date.today().year, date_from=date.today()):
     """
     Get the next game object for the next opponent
     """
@@ -13,14 +19,14 @@ def get_next_game(team_year, date_from=date.today()):
 
     next_opponent = team_year.get_next_opponent_or_last(date_from)
 
-    return TeamGame(team_year, next_opponent)
+    return TeamGame(team_year, next_opponent, year)
 
 
 class TeamYear:
     def __init__(self, team_name: str, year: int) -> None:
         self.team_name = team_name
         self.year = year
-        self.team_dir = Path(SEASONS_DIR) / str(year) / team_name
+        self.team_dir = team_save_dir(team_name, year)
         self.games = None
         self.roster = None
         self.stats = None
@@ -77,6 +83,10 @@ class TeamYear:
         """
         if self.games is not None and not reload:
             return self.games
+
+        if reload:
+            download_raw_team_games_for_year(self.team_name, self.year)
+
         self.games = pd.read_csv(self.team_dir / "games.csv", index_col=0)
         return self.games
 
@@ -86,6 +96,10 @@ class TeamYear:
         """
         if self.stats is not None and not reload:
             return self.stats
+
+        if reload:
+            download_raw_team_stats_for_year(self.team_name, self.year)
+
         self.stats = pd.read_csv(self.team_dir / "stats.csv", index_col=0)
         return self.stats
 
@@ -95,5 +109,11 @@ class TeamYear:
         """
         if self.roster is not None and not reload:
             return self.roster
-        self.roster = pd.read_csv(self.team_dir / "roster.csv", index_col=0)
+
+        if reload:
+            download_and_save_team_roster(self.team_name, self.year)
+
+        team_roster_file = self.team_dir / "roster.csv"
+
+        self.roster = pd.read_csv(team_roster_file, index_col=0)
         return self.roster
