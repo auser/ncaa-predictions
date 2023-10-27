@@ -260,6 +260,7 @@ def get_team_games_for_year(
 
     games_df2 = games_df2.drop(columns=["raw_datetime"])
     games_df2.reset_index()
+    games_df2 = games_df2.replace("", 0)
     return games_df2
 
 
@@ -342,6 +343,7 @@ def get_team_roster(
         team_roster1.loc[idx, "height_in"] = int(inch)
 
     team_roster1 = team_roster1.drop(columns=["height"])
+    team_roster1 = team_roster1.replace("", 0)
     return team_roster1
 
 
@@ -388,6 +390,7 @@ def get_team_stats(
         # df = pd.concat([df, local_df])
 
     team_stats = pd.DataFrame(data_df, columns=headings)
+    team_stats = team_stats.replace("", 0)
     return team_stats
 
 
@@ -474,15 +477,18 @@ def get_game_stats(
     team1, stats_team1 = process_table(tables[0])
     team2, stats_team2 = process_table(tables[1])
 
-    team1_games_save_dir = team_save_dir(team1, year) / "games"
-    if not team1_games_save_dir.exists():
-        team1_games_save_dir.mkdir(exist_ok=True, parents=True)
-    stats_team2.to_csv(team1_games_save_dir / f"{team2}.csv")
+    stats_team1 = stats_team1.replace("", 0)
+    stats_team2 = stats_team2.replace("", 0)
 
-    team2_games_save_dir = team_save_dir(team2, year) / "games"
-    if not team2_games_save_dir.exists():
-        team2_games_save_dir.mkdir(exist_ok=True, parents=True)
-    stats_team1.to_csv(team2_games_save_dir / f"{team1}.csv")
+    # team1_games_save_dir = team_save_dir(team1, year) / "games"
+    # if not team1_games_save_dir.exists():
+    #     team1_games_save_dir.mkdir(exist_ok=True, parents=True)
+    # stats_team2.to_csv(team1_games_save_dir / f"{team2}.csv")
+
+    # team2_games_save_dir = team_save_dir(team2, year) / "games"
+    # if not team2_games_save_dir.exists():
+    #     team2_games_save_dir.mkdir(exist_ok=True, parents=True)
+    # stats_team1.to_csv(team2_games_save_dir / f"{team1}.csv")
 
     return (team1, stats_team1, team2, stats_team2)
 
