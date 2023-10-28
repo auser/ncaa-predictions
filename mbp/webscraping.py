@@ -284,6 +284,10 @@ def clean_team_name_and_return_home(team_name: str) -> (str, int):
     else:
         home = 1
 
+    team_name1 = team_name.strip()
+    if "\n" in team_name1:
+        team_name = team_name1.split("\n")[0]
+
     return (team_name.strip(), home)
 
 
@@ -468,10 +472,11 @@ def get_game_stats(
                 player_and_stats[heading] = cells[idx].text
 
             player_and_stats["team"] = team
-
             players_and_stats.append(player_and_stats)
 
         game_df = pd.DataFrame(players_and_stats)
+        game_df = game_df.drop(game_df[game_df["player"] == "TEAM"].index)
+
         return (team, game_df)
 
     team1, stats_team1 = process_table(tables[0])

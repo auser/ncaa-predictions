@@ -31,7 +31,15 @@ class TeamGame:
         """
         Get players who played in the game
         """
-        (team_a_stats, team_b_stats) = self.get_game_stats(reload)
+        game_stats = self.get_game_stats(reload)
+
+        for team_name in [self.team_a.team_name, self.team_b.team_name]:
+            team = game_stats.loc[game_stats["team"] == team_name]
+            all_team_players = self.team_a.get_roster()
+            player_names = [p for p in all_team_players["player"]]
+            active_players = [p for p in team["player"] if p in player_names]
+            active_players
+
         all_team_a_players = self.team_b.get_roster(reload)
         print(all_team_a_players)
 

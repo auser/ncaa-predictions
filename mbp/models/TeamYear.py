@@ -117,3 +117,11 @@ class TeamYear:
 
         self.roster = pd.read_csv(team_roster_file, index_col=0)
         return self.roster
+
+    def get_roster_stats(self, reload: bool = False):
+        """
+        Get roster details along with game stats merged
+        """
+        roster = self.get_roster(reload)
+        stats = self.get_stats(reload)
+        return pd.merge(roster, stats, on="player")
